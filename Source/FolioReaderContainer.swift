@@ -11,7 +11,7 @@ import FontBlaster
 
 var readerConfig: FolioReaderConfig!
 var epubPath: String?
-var book: FRBook!
+public var book: FRBook!
 
 enum SlideOutState {
     case BothCollapsed
@@ -77,11 +77,21 @@ class FolioReaderContainer: UIViewController, FolioReaderSidePanelDelegate {
             kCurrentFontSize: 2,
             kCurrentAudioRate: 1,
             kCurrentHighlightStyle: 0,
+            kCurrentMargin: 0,
+            kCurrentTwoColumns: false,
+            kCurrentInterline: 0,
+            kCurrentFontColor: 0,
+            kCurrentBackgroundColor: 0,
             kCurrentMediaOverlayStyle: MediaOverlayStyle.Default.rawValue
         ])
     }
     
     // MARK: - View life cicle
+    override func viewWillDisappear(animated: Bool) {
+        super.viewWillDisappear(animated)
+    }
+    
+
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -101,7 +111,7 @@ class FolioReaderContainer: UIViewController, FolioReaderSidePanelDelegate {
         tapGestureRecognizer.numberOfTapsRequired = 1
         let panGestureRecognizer = UIPanGestureRecognizer(target: self, action: #selector(FolioReaderContainer.handlePanGesture(_:)))
         centerNavigationController.view.addGestureRecognizer(tapGestureRecognizer)
-        centerNavigationController.view.addGestureRecognizer(panGestureRecognizer)
+//        centerNavigationController.view.addGestureRecognizer(panGestureRecognizer)
 
         // Read async book
         if (epubPath != nil) {
@@ -119,7 +129,7 @@ class FolioReaderContainer: UIViewController, FolioReaderSidePanelDelegate {
                     }
                 }
                 else {
-                    print("Epub file does not exist.")
+                    print("Epub file does not exist. \(epubPath!)")
                     self.errorOnLoad = true
                 }
                 
@@ -251,6 +261,8 @@ class FolioReaderContainer: UIViewController, FolioReaderSidePanelDelegate {
     func handleTapGesture(recognizer: UITapGestureRecognizer) {
         if currentState == .LeftPanelExpanded {
             toggleLeftPanel()
+        }else{
+            animateLeftPanel(shouldExpand: true)
         }
     }
     

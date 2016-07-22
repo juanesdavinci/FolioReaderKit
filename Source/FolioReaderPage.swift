@@ -15,14 +15,21 @@ import JSQWebViewController
     optional func pageDidLoad(page: FolioReaderPage)
 }
 
-class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecognizerDelegate, FolioReaderAudioPlayerDelegate {
+public class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecognizerDelegate, FolioReaderAudioPlayerDelegate {
     
     var pageNumber: Int!
     var webView: UIWebView!
+    var bURL : NSURL!
     weak var delegate: FolioPageDelegate!
     private var shouldShowBar = true
     private var menuIsVisible = false
-    
+    private var loadedHighlights = false
+    private var originalHtlm = ""
+    var scroll : CGPoint = CGPointZero
+    //Search Highlight after Load
+    private var shouldSearchHighlight : Bool = false
+    private var highlightForSearch : String!
+    private var shouldLoadOriginalHTML: Bool = false
     // MARK: - View life cicle
     
     override init(frame: CGRect) {
@@ -45,11 +52,12 @@ class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecogni
         webView.addGestureRecognizer(tapGestureRecognizer)
     }
 
-    required init?(coder aDecoder: NSCoder) {
+    required public init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
     }
     
-    override func layoutSubviews() {
+    
+    override public func layoutSubviews() {
         super.layoutSubviews()
         
         webView.frame = webViewFrame()
@@ -67,32 +75,206 @@ class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecogni
         }
     }
     
+    func setOriginalHTML() {
+        shouldLoadOriginalHTML = true
+    }
     func loadHTMLString(string: String!, baseURL: NSURL!) {
         
+        bURL = baseURL
         var html = (string as NSString)
+        if !html.containsString("<!DOCTYPE") {
+            html = "<!DOCTYPE html>  \(html) "
+        }
         
-        // Restore highlights
-        let highlights = Highlight.allByBookId((kBookId as NSString).stringByDeletingPathExtension, andPage: pageNumber)
+        //Eliminar elemento xHTML
+        html = html.stringByReplacingOccurrencesOfString("<title />", withString: "<title></title>")
+        loadedHighlights = false
+        webView.alpha = 0
+        webView.loadHTMLString(html as String, baseURL: baseURL)
+        
+//        Leer como xHTML
+//        let data = html.dataUsingEncoding(NSUTF8StringEncoding)
+//        webView.loadData(data!, MIMEType: "application/xhtml+xml", textEncodingName: "", baseURL: baseURL)
+//        [swepuWebView loadData:[decryptedString dataUsingEncoding:NSUTF8StringEncoding] MIMEType:@"application/xhtml+xml" textEncodingName:@"UTF-8" baseURL:nil]
+    }
+  
+    
+    func proccessHighlights() -> String{
+    
+        var highlights = Highlight.allByBookId((kBookId as NSString).stringByDeletingPathExtension, andPage: pageNumber)
+        var newHtml = getHTML()!
+        
+        highlights.sortInPlace { $0.startPos.compare($1.startPos) == .OrderedAscending }
         
         if highlights.count > 0 {
             for item in highlights {
                 let style = HighlightStyle.classForStyle(item.type.integerValue)
-                let tag = "<highlight id=\"\(item.highlightId)\" onclick=\"callHighlightURL(this);\" class=\"\(style)\">\(item.content)</highlight>"
-                let locator = item.contentPre + item.content + item.contentPost
-                let range: NSRange = html.rangeOfString(locator, options: .LiteralSearch)
+                let tag = "<highlight id=\"\(item.highlightId)\" onclick=\"callHighlightURL('\(item.highlightId)');\" class=\"\(style)\">\(item.content)</highlight>"
+                let bodyIndex = newHtml.rangeOfString("<body")?.startIndex
+//                print("startPos \(item.startPos)  endPos\(item.endPos) bodyIndex \(bodyIndex)")
+                let end = bodyIndex?.advancedBy(Int(item.endPos))
+                var selectionHtml = newHtml.substringWithRange(Range<String.Index>(start: (bodyIndex?.advancedBy(Int(item.startPos)))!, end: end!))
+//                print("bodyIndex \(bodyIndex!.advancedBy(Int(item.startPos))) end: \(end) selectionHtml \(selectionHtml)")
+//                print("\n\n\nnewHtml \n\(newHtml)")
+                var countChild : Int = 0
+                for tag in tags{
+                    //            print("op: \(d.operation.rawValue) text: \(d.text)")
+                    var replaced = [String]()
+                    var preHL = "<highlight onclick=\"callHighlightURL('\(item.highlightId)');\" class=\"\(style)\">"
+                    var strs = selectionHtml.matchesForRegexInText("<\(tag)[^>]*>") //<---- Garantizar que sea sólo un >
+                    for s in strs {
+                        if !replaced.contains(s) {
+                            selectionHtml = selectionHtml.stringByReplacingOccurrencesOfString(s, withString: "</highlight>\(s)\(preHL)")
+                            
+                            replaced.append(s)
+                        }
+                    }
+                    preHL = "<highlight onclick=\"callHighlightURL('\(item.highlightId)');\" class=\"\(style)\">"
+                    strs = selectionHtml.matchesForRegexInText("</\(tag)[^>]*>")
+                    for s in strs {
+                        if !replaced.contains(s) {
+                            selectionHtml = selectionHtml.stringByReplacingOccurrencesOfString(s, withString: "</highlight>\(s)\(preHL)")
+                            replaced.append(s)
+                        }
+                    }
+                }
+                selectionHtml = tag
+                let start = bodyIndex!.advancedBy(Int(item.startPos))
+                let finish = bodyIndex!.advancedBy(Int(item.endPos))
+                newHtml.replaceRange(Range<String.Index>(start: start, end: finish), with: selectionHtml)
+                let emptyTag = "<highlight onclick=\"callHighlightURL('\(item.highlightId)');\" class=\"\(style)\"></highlight>"
+                newHtml.stringByReplacingOccurrencesOfString(emptyTag, withString: "")
+            }
+        }
+//        print("\n\n\nnewHtml \(newHtml)")
+        return newHtml
+    }
+    
+    let tags : [String] = ["p","span","div"]
+    var htmlPrev : String = ""
+    
+    func setPrevHtml() {
+        htmlPrev = getHTML()!
+    }
+    
+    func makeHighlights(value value:String, selection: Int, higID : String) -> FRHighlight?{
+    
+        var ntd : [Highlight] = Highlight.allByBookId((kBookId as NSString).stringByDeletingPathExtension, andPage: pageNumber)
+        var selectedText = selection
+        
+        var dmp : DiffMatchPatch = DiffMatchPatch()
+        var htmlSub = getHTML()
+//        print("\n\n\nhtmlSub \n\(htmlSub!) \n\n\nhtmlPrev \n\(htmlPrev)")
+        let bodyIndex = htmlSub!.rangeOfString("<body")?.startIndex
+        // computing diff at word level...
+        var diffs : [Diff] = dmp.diff_mainOfOldString(htmlPrev, andNewString: htmlSub!)
+        let style = HighlightStyle.classForStyle(selection)
+        let initTag = "<highlight id=\"\(higID)\" onclick=\"callHighlightURL('\(higID)');\" class=\"\(style)\">"
+        
+        let startIndex = diffs[0].text.characters.count
+        let finTagIndex = startIndex + diffs[2].text.characters.count
+        
+        var selectionHtml = diffs[2].text
+        
+        if selectionHtml.containsString("highlight") {
+            return nil
+        }
+        
+        let initHtml = diffs[0].text
+        let finalHtml = diffs[4].text
+        
+        var relativeIDs = [String]()
+        var countChild : Int = 0
+        for tag in tags{
+//            print("op: \(d.operation.rawValue) text: \(d.text)")
+            var replaced = [String]()
+            var preHL = "<highlight onclick=\"callHighlightURL('\(higID)');\" class=\"\(style)\">"
+            var strs = selectionHtml.matchesForRegexInText("<\(tag)[^>]*>") //<---- Garantizar que sea sólo un >
+            for s in strs {
+                if !replaced.contains(s) {
+                    selectionHtml = selectionHtml.stringByReplacingOccurrencesOfString(s, withString: "</highlight>\(s)\(preHL)")
+//                    countChild += 1
+                    replaced.append(s)
+                }
+                countChild += 1
                 
-                if range.location != NSNotFound {
-                    let newRange = NSRange(location: range.location + item.contentPre.characters.count, length: item.content.characters.count)
-                    html = html.stringByReplacingCharactersInRange(newRange, withString: tag)
+            }
+            preHL = "<highlight onclick=\"callHighlightURL('\(higID)');\" class=\"\(style)\">"
+            strs = selectionHtml.matchesForRegexInText("</\(tag)[^>]*>")
+            for s in strs {
+                if !replaced.contains(s) {
+                    selectionHtml = selectionHtml.stringByReplacingOccurrencesOfString(s, withString: "</highlight>\(s)\(preHL)")
+//                    countChild += 1
+                    replaced.append(s)
                 }
-                else {
-                    print("highlight range not found")
-                }
+                countChild += 1
             }
         }
         
-        webView.alpha = 0
-        webView.loadHTMLString(html as String, baseURL: baseURL)
+        var emptyTag = "<highlight onclick=\"callHighlightURL('\(higID)');\" class=\"\(style)\"></highlight>"
+        var strs = selectionHtml.rangesOfString(emptyTag)
+        print("\n\ncantidad de tags vacíos \(strs.count)")
+        selectionHtml = selectionHtml.stringByReplacingOccurrencesOfString(emptyTag, withString: "")
+        countChild -= strs.count
+        
+        emptyTag = "<highlight onclick=\"callHighlightURL('\(higID)');\" class=\"\(style)\">\n</highlight>"
+        strs = selectionHtml.rangesOfString(emptyTag)
+        print("\n\ncantidad de tags vacíos \(strs.count)")
+        selectionHtml = selectionHtml.stringByReplacingOccurrencesOfString(emptyTag, withString: "")
+        countChild -= strs.count
+        
+        
+        
+//        print("\nselectionHtml \(selectionHtml)")
+        htmlSub = initHtml + initTag + selectionHtml + "</highlight>" + finalHtml
+        
+        
+        var html = getHTML()!
+        let occ = html.matchesForRegexInText("<body.*</body>")
+        if occ.count > 0 {
+            html.stringByReplacingOccurrencesOfString(occ[0], withString: htmlSub!)
+        }
+        let highl = FRHighlight()
+        highl.bookId = (kBookId as NSString).stringByDeletingPathExtension
+        highl.id = higID
+        highl.type = HighlightStyle.styleForClass(style)
+        highl.content = selectionHtml
+        highl.contentPre = ""
+        highl.contentPost = ""
+        highl.page = currentPageNumber
+        highl.startPos = startIndex - htmlSub!.startIndex.distanceTo(bodyIndex!)
+        highl.endPos = finTagIndex - htmlSub!.startIndex.distanceTo(bodyIndex!)
+        highl.date = NSDate()
+        highl.childCount = countChild
+        
+        FolioReader.sharedInstance.readerCenter.reloadWebView()
+        
+        var s = ""
+        for h in Highlight.allByBookId((kBookId as NSString).stringByDeletingPathExtension) {
+            if h.highlightId == highl.id {
+                s = h.notes
+            }
+        }
+        
+        Highlight.persistHighlight(highl, completion: nil, note: s)
+        
+        for ndo in ntd{
+            let ind = ntd.indexOf(ndo)
+            var iTag = "<highlight id=\"\(ndo.highlightId)\" onclick=\"callHighlightURL('\(ndo.highlightId)');\" class=\"\(HighlightStyle.classForStyle(ndo.type.integerValue))\">"
+            var nStartIndex = htmlSub?.rangeOfString(iTag)
+            if nStartIndex == nil {
+                iTag = "<highlight id=\"\(ndo.highlightId)\" onclick=\"callHighlightURL(this);\" class=\"\(HighlightStyle.classForStyle(ndo.type.integerValue))\">"
+                nStartIndex = htmlSub?.rangeOfString(iTag)
+            }
+            let difference = htmlSub!.startIndex.distanceTo(nStartIndex!.startIndex) - Int(ndo.startPos) - htmlSub!.startIndex.distanceTo(bodyIndex!)
+            ndo.startPos = Int(ndo.startPos) + difference
+            ndo.endPos = Int(ndo.endPos) + difference
+        }
+        return highl
+    }
+    
+    func reloadWebView(){
+        FolioReader.sharedInstance.readerCenter.reloadWebView()
     }
     
     // MARK: - FolioReaderAudioPlayerDelegate
@@ -102,15 +284,20 @@ class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecogni
     
     // MARK: - UIWebView Delegate
     
-    func webViewDidFinishLoad(webView: UIWebView) {
+    public func webViewDidFinishLoad(webView: UIWebView) {
         if (!book.hasAudio()) {
             FolioReader.sharedInstance.readerAudioPlayer.delegate = self;
-            self.webView.js("wrappingSentencesWithinPTags()");
+//            self.webView.js("wrappingSentencesWithinPTags()");
             if (FolioReader.sharedInstance.readerAudioPlayer.isPlaying()) {
                 readCurrentSentence()
             }
         }
-
+        if shouldLoadOriginalHTML {
+            if let s = getHTML(){
+                originalHtlm = s
+                shouldLoadOriginalHTML = false
+            }
+        }
         webView.scrollView.contentSize = CGSizeMake(pageWidth, webView.scrollView.contentSize.height)
         
         if scrollDirection == .Down && isScrolling {
@@ -129,10 +316,23 @@ class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecogni
 
         delegate.pageDidLoad!(self)
         
+        if !loadedHighlights {
+            let html = proccessHighlights()// <-- Cargar el archivo y después leerlo
+            loadHTMLString(html as String, baseURL: bURL)
+            loadedHighlights = true
+        }else{
+            if scroll.y != 0 {
+                webView.scrollView.contentOffset = scroll
+                scroll = CGPointZero
+            }
+        }
         
+        if shouldSearchHighlight {
+            handleAnchor(highlightForSearch, avoidBeginningAnchors: true, animating: true)
+        }
     }
     
-    func webView(webView: UIWebView, shouldStartLoadWithRequest request: NSURLRequest, navigationType: UIWebViewNavigationType) -> Bool {
+    public func webView(webView: UIWebView, shouldStartLoadWithRequest request: NSURLRequest, navigationType: UIWebViewNavigationType) -> Bool {
         
         let url = request.URL
         
@@ -216,9 +416,23 @@ class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecogni
         return true
     }
     
+    func getHTML()-> String? {
+        
+        if let html = self.webView.js("getHTML()"){
+            return html
+        }else{
+            return "<html></html>"
+        }
+    }
+    
+    func getHTMLBody()-> String? {
+        let htmlBody = self.webView.js("getHTMLBody()")
+        return htmlBody
+    }
+    
     // MARK: Gesture recognizer
     
-    func gestureRecognizer(gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWithGestureRecognizer otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+    public func gestureRecognizer(gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWithGestureRecognizer otherGestureRecognizer: UIGestureRecognizer) -> Bool {
         
         if gestureRecognizer.view is UIWebView {
             if otherGestureRecognizer is UILongPressGestureRecognizer {
@@ -273,10 +487,11 @@ class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecogni
             webView.js(jsCommand)
         }
     }
-    
     func handleAnchor(anchor: String,  avoidBeginningAnchors: Bool, animating: Bool) {
         if !anchor.isEmpty {
+//            print("currentPageNumber \(currentPageNumber) anchor \(anchor)")
             if let offset = getAnchorOffset(anchor) {
+//                print("offset: \(offset)")
                 let isBeginning = CGFloat((offset as NSString).floatValue) > self.frame.height/2
                 
                 if !avoidBeginningAnchors {
@@ -284,6 +499,10 @@ class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecogni
                 } else if avoidBeginningAnchors && isBeginning {
                     scrollPageToOffset(offset, animating: animating)
                 }
+                shouldSearchHighlight = false
+            }else{
+                shouldSearchHighlight = true
+                highlightForSearch = anchor
             }
         }
     }
@@ -293,7 +512,7 @@ class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecogni
         return webView.js(jsAnchorHandler)
     }
     
-    override func canPerformAction(action: Selector, withSender sender: AnyObject?) -> Bool {
+    override public func canPerformAction(action: Selector, withSender sender: AnyObject?) -> Bool {
 
         if UIMenuController.sharedMenuController().menuItems?.count == 0 {
             webView.isColors = false
@@ -348,6 +567,23 @@ class FolioReaderPage: UICollectionViewCell, UIWebViewDelegate, UIGestureRecogni
     func audioMarkID(ID: String){
         self.webView.js("audioMarkID('\(book.playbackActiveClass())','\(ID)')");
     }
+    
+    func forceReload(newBackground: Bool = false){
+        scroll = webView.scrollView.contentOffset
+//        var html = originalHtlm
+//        if newBackground {
+//            if let s = getHTML() {
+//                html = s
+//            }
+//        }
+        
+        let html = FolioReader.sharedInstance.readerCenter.createHtmlForPage(currentPageNumber - 1)!
+        loadHTMLString(html as String, baseURL: bURL)
+//        originalHtlm = html
+//        print("this page is \(currentPageNumber) \(pageNumber)")
+        
+        
+    }
 }
 
 // MARK: - WebView Highlight and share implementation
@@ -375,7 +611,7 @@ extension UIWebView {
 
         // menu on existing highlight
         if isShare {
-            if action == #selector(UIWebView.colors(_:)) || (action == #selector(UIWebView.share(_:)) && readerConfig.allowSharing == true) || action == #selector(UIWebView.remove(_:)) {
+            if action == #selector(UIWebView.colors(_:)) || (action == #selector(UIWebView.share(_:)) && readerConfig.allowSharing == true) || action == #selector(UIWebView.remove(_:)) || action == #selector(UIWebView.addNote(_:)){
                 return true
             }
             return false
@@ -395,7 +631,7 @@ extension UIWebView {
             }
             
             if action == #selector(UIWebView.highlight(_:))
-            || (action == #selector(UIWebView.define(_:)) && isOneWord)
+//            || (action == #selector(UIWebView.define(_:)) && isOneWord)
             || (action == #selector(UIWebView.play(_:)) && (book.hasAudio() || readerConfig.enableTTS))
             || (action == #selector(UIWebView.share(_:)) && readerConfig.allowSharing == true)
             || (action == #selector(NSObject.copy(_:)) && readerConfig.allowSharing == true) {
@@ -431,16 +667,71 @@ extension UIWebView {
     }
     
     func remove(sender: UIMenuController?) {
+        let html = js("getHTML();")!
+        var ntd : [Highlight] = Highlight.allByBookId((kBookId as NSString).stringByDeletingPathExtension, andPage: currentPageNumber)
+        ntd.sortInPlace { $0.startPos.compare($1.startPos) == .OrderedAscending }
         if let removedId = js("removeThisHighlight()") {
+            
+            if let h = Highlight.getHighlightById(removedId){
+                let index = ntd.indexOf(h)
+                
+                let iTag = "<highlight id=\"\(h.highlightId)\" onclick=\"callHighlightURL('\(h.highlightId)');\" class=\"\(HighlightStyle.classForStyle(h.type.integerValue))\"></highlight>"
+                let childTag = "<highlight onclick=\"callHighlightURL('\(h.highlightId)');\" class=\"\(HighlightStyle.classForStyle(h.type.integerValue))\"></highlight>"
+                let difference = Int(h.childCount) * childTag.characters.count + iTag.characters.count
+                
+                Highlight.removeById(removedId)
+                moveHighlights(array: ntd, index: index, difference: difference)
+                setMenuVisible(false)
+//                FolioReader.sharedInstance.readerCenter.currentPage.reloadWebView()]'
+//                FolioReader.sharedInstance.readerCenter.reloadData()
+                FolioReader.sharedInstance.readerCenter.currentPage.forceReload()
+            }
+        }
+    }
+    
+    
+    func removeHighlight(removedId : String, page : Int){
+        var ntd : [Highlight] = Highlight.allByBookId((kBookId as NSString).stringByDeletingPathExtension, andPage: page)
+        ntd.sortInPlace { $0.startPos.compare($1.startPos) == .OrderedAscending }
+        if let h = Highlight.getHighlightById(removedId){
+            let index = ntd.indexOf(h)
+            
+            let iTag = "<highlight id=\"\(h.highlightId)\" onclick=\"callHighlightURL('\(h.highlightId)');\" class=\"\(HighlightStyle.classForStyle(h.type.integerValue))\"></highlight>"
+            let childTag = "<highlight onclick=\"callHighlightURL('\(h.highlightId)');\" class=\"\(HighlightStyle.classForStyle(h.type.integerValue))\"></highlight>"
+            let difference = Int(h.childCount) * childTag.characters.count + iTag.characters.count
+            
             Highlight.removeById(removedId)
+            moveHighlights(array: ntd, index: index, difference: difference)
+            if page == currentPageNumber {
+                FolioReader.sharedInstance.readerCenter.currentPage.forceReload()
+            }
+        }
+    }
+    
+    func moveHighlights(array ntd : [Highlight], index : Int?, difference : Int){
+        let html = js("getHTML();")!
+        if ntd.count >= (index! + 2) {
+            for ndo in (index! + 1)...ntd.count-1{
+                ntd[ndo].startPos = Int(ntd[ndo].startPos) - difference
+                ntd[ndo].endPos = Int(ntd[ndo].endPos) - difference
+                Highlight.persistHighlight()
+            }
         }
         
-        setMenuVisible(false)
     }
     
     func highlight(sender: UIMenuController?) {
+        js("uiWebview_RemoveAllHighlights();")// Highlights de la búsqueda
+        FolioReader.sharedInstance.readerCenter.currentPage.setPrevHtml()
+        
         let highlightAndReturn = js("highlightString('\(HighlightStyle.classForStyle(FolioReader.sharedInstance.currentHighlightStyle))')")
         let jsonData = highlightAndReturn?.dataUsingEncoding(NSUTF8StringEncoding)
+        
+        if jsonData == nil {
+            userInteractionEnabled = false
+            userInteractionEnabled = true
+            return
+        }
         
         do {
             let json = try NSJSONSerialization.JSONObjectWithData(jsonData!, options: []) as! NSArray
@@ -455,9 +746,31 @@ extension UIWebView {
             setMenuVisible(true, andRect: rect)
             
             // Persist
-            let html = js("getHTML()")
-            if let highlight = FRHighlight.matchHighlight(html, andId: dic["id"]!) {
-                Highlight.persistHighlight(highlight, completion: nil)
+            let html = js("getHTML()")!
+            let id = dic["id"]!
+            
+            if let highlight = FolioReader.sharedInstance.readerCenter.currentPage.makeHighlights(value: html, selection: FolioReader.sharedInstance.currentHighlightStyle, higID: id){
+            
+//            if let highlight = FRHighlight.matchHighlight(html, andId: dic["id"]!) {
+            
+                //Search note
+                var s = ""
+                for h in Highlight.allByBookId((kBookId as NSString).stringByDeletingPathExtension) {
+                    if h.highlightId == highlight.id {
+                        s = h.notes
+                    }
+                }
+                
+                Highlight.persistHighlight(highlight, completion: nil, note: s)
+                FolioReader.sharedInstance.readerCenter.currentPage.forceReload()
+            }else{
+                setMenuVisible(false)
+                js("removeThisHighlight()")
+                // Force remove text selection
+                userInteractionEnabled = false
+                userInteractionEnabled = true
+                FolioReader.sharedInstance.readerCenter.pressentAlertForHighlight()
+                FolioReader.sharedInstance.readerCenter.currentPage.forceReload()
             }
         } catch {
             print("Could not receive JSON")
@@ -512,9 +825,37 @@ extension UIWebView {
         FolioReader.sharedInstance.currentHighlightStyle = style.rawValue
 
         if let updateId = js("setHighlightStyle('\(HighlightStyle.classForStyle(style.rawValue))')") {
+            
+            let h = Highlight.getHighlightById(updateId)
+            
+            let newStyle = HighlightStyle.classForStyle(style.rawValue)
+            let oldStyle = HighlightStyle.classForStyle(Int(h!.type))
+            
+            var content = h?.content
+            
+            content = content?.stringByReplacingOccurrencesOfString(oldStyle, withString: newStyle)
+            h?.content = content!
+            
+            let difference = (newStyle.characters.count - oldStyle.characters.count) * (Int(h!.childCount) + 1)
+            var ntd : [Highlight] = Highlight.allByBookId((kBookId as NSString).stringByDeletingPathExtension, andPage: currentPageNumber)
+            ntd.sortInPlace { $0.startPos.compare($1.startPos) == .OrderedAscending }
+            let index = ntd.indexOf(h!)
             Highlight.updateById(updateId, type: style)
+            
+            moveHighlights(array: ntd, index: index, difference: -difference)
+            
+            FolioReader.sharedInstance.readerCenter.currentPage.forceReload()
         }
         colors(sender)
+        
+
+    }
+    
+    func addNote(sender: UIMenuController?){
+        
+        if let id = js("getThisHighlightID()"){
+            FolioReader.sharedInstance.readerCenter.addNoteToHighlight(id)
+        }
     }
     
     // MARK: - Create and show menu
@@ -531,6 +872,9 @@ extension UIWebView {
         let pink = UIImage(readerImageNamed: "pink-marker")
         let underline = UIImage(readerImageNamed: "underline-marker")
         
+        //Comments
+        let note = UIImage(readerImageNamed: "icon-highlight")
+        
         let highlightItem = UIMenuItem(title: readerConfig.localizedHighlightMenu, action: #selector(UIWebView.highlight(_:)))
         let playAudioItem = UIMenuItem(title: readerConfig.localizedPlayMenu, action: #selector(UIWebView.play(_:)))
         let defineItem = UIMenuItem(title: readerConfig.localizedDefineMenu, action: #selector(UIWebView.define(_:)))
@@ -542,8 +886,9 @@ extension UIWebView {
         let blueItem = UIMenuItem(title: "B", image: blue!, action: #selector(UIWebView.setBlue(_:)))
         let pinkItem = UIMenuItem(title: "P", image: pink!, action: #selector(UIWebView.setPink(_:)))
         let underlineItem = UIMenuItem(title: "U", image: underline!, action: #selector(UIWebView.setUnderline(_:)))
+        let noteItem = UIMenuItem(title: "N", image: note!, action: #selector(UIWebView.addNote(_:)))
         
-        let menuItems = [playAudioItem, highlightItem, defineItem, colorsItem, removeItem, yellowItem, greenItem, blueItem, pinkItem, underlineItem, shareItem]
+        let menuItems = [playAudioItem, highlightItem, defineItem, colorsItem, removeItem, yellowItem, greenItem, blueItem, pinkItem, underlineItem, shareItem, noteItem]
 
         UIMenuController.sharedMenuController().menuItems = menuItems
     }

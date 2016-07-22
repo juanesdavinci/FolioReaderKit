@@ -16,7 +16,7 @@ protocol FolioReaderSidePanelDelegate: class {
     func sidePanel(sidePanel: FolioReaderSidePanel, didSelectRowAtIndexPath indexPath: NSIndexPath, withTocReference reference: FRTocReference)
 }
 
-class FolioReaderSidePanel: UIViewController, UITableViewDelegate, UITableViewDataSource {
+public class FolioReaderSidePanel: UIViewController, UITableViewDelegate, UITableViewDataSource {
 
     weak var delegate: FolioReaderSidePanelDelegate?
     var tableView: UITableView!
@@ -24,63 +24,32 @@ class FolioReaderSidePanel: UIViewController, UITableViewDelegate, UITableViewDa
     let toolBarHeight: CGFloat = 50
     var tocItems = [FRTocReference]()
     
-    override func viewDidLoad() {
+    override public func viewDidLoad() {
         super.viewDidLoad()
         
         var tableViewFrame = screenBounds()
-        tableViewFrame.size.height = tableViewFrame.height-toolBarHeight
+        tableViewFrame.size.height = tableViewFrame.height/*-toolBarHeight*/
         
         tableView = UITableView(frame: tableViewFrame)
         tableView.delaysContentTouches = true
         tableView.autoresizingMask = [.FlexibleWidth, .FlexibleHeight]
         tableView.backgroundColor = isNight(readerConfig.nightModeMenuBackground, readerConfig.menuBackgroundColor)
-        tableView.separatorColor = isNight(readerConfig.nightModeSeparatorColor, readerConfig.menuSeparatorColor)
+        tableView.separatorColor = isNight(readerConfig.nightModeSeparatorColor, UIColor.grayColor())
         tableView.delegate = self
         tableView.dataSource = self
         view.addSubview(tableView)
-        
-        toolBar = UIToolbar(frame: CGRectMake(0, screenBounds().height-toolBarHeight, view.frame.width, toolBarHeight))
-        toolBar.autoresizingMask = .FlexibleWidth
-        toolBar.barTintColor = readerConfig.toolBarBackgroundColor
-        toolBar.tintColor = readerConfig.toolBarTintColor
-        toolBar.clipsToBounds = true
-        toolBar.translucent = false
-        view.addSubview(toolBar)
-        
-        let imageHighlight = UIImage(readerImageNamed: "icon-highlight")
-        let imageClose = UIImage(readerImageNamed: "icon-close")
-        let imageFont = UIImage(readerImageNamed: "icon-font")
-        let space = 70 as CGFloat
-        
-        let blackImage = UIImage.imageWithColor(UIColor(white: 0, alpha: 0.2))
-        let closeButton = UIButton(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
-        closeButton.setImage(imageClose, forState: UIControlState.Normal)
-        closeButton.setBackgroundImage(blackImage, forState: UIControlState.Normal)
-        closeButton.addTarget(self, action: #selector(FolioReaderSidePanel.didSelectClose(_:)), forControlEvents: UIControlEvents.TouchUpInside)
-        
-        let noSpace = UIBarButtonItem(barButtonSystemItem: UIBarButtonSystemItem.FixedSpace, target: nil, action: nil)
-        noSpace.width = isPad || isLargePhone ? -20 : -16
-        let iconClose = UIBarButtonItem(customView: closeButton)
-        
-        let iconHighlight = UIBarButtonItem(image: imageHighlight, style: .Plain, target: self, action: #selector(FolioReaderSidePanel.didSelectHighlight(_:)))
-        iconHighlight.width = space
-        
-        let iconFont = UIBarButtonItem(image: imageFont, style: .Plain, target: self, action: #selector(FolioReaderSidePanel.didSelectFont(_:)))
-        iconFont.width = space
-        
-        toolBar.setItems([noSpace, iconClose, iconFont, iconHighlight], animated: false)
         
         
         // Register cell classes
         tableView.registerClass(FolioReaderSidePanelCell.self, forCellReuseIdentifier: reuseIdentifier)
         tableView.separatorInset = UIEdgeInsetsZero
-        tableView.contentInset = UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+//        tableView.contentInset = UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
         
         // Create TOC list
         createTocList()
     }
 
-    override func didReceiveMemoryWarning() {
+    override public func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
     }
@@ -104,15 +73,15 @@ class FolioReaderSidePanel: UIViewController, UITableViewDelegate, UITableViewDa
 
     // MARK: - Table view data source
 
-    func numberOfSectionsInTableView(tableView: UITableView) -> Int {
+    public func numberOfSectionsInTableView(tableView: UITableView) -> Int {
         return 1
     }
 
-    func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    public func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return tocItems.count
     }
 
-    func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
+    public func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCellWithIdentifier(reuseIdentifier, forIndexPath: indexPath) as! FolioReaderSidePanelCell
         
         let tocReference = tocItems[indexPath.row]
@@ -136,24 +105,28 @@ class FolioReaderSidePanel: UIViewController, UITableViewDelegate, UITableViewDa
             let resource = reference.resource
             cell.indexLabel.textColor = tocReference.resource!.href == resource.href ? readerConfig.tintColor : readerConfig.menuTextColor
         }
+//        cell.indexLabel.text = cell.indexLabel.text! + "\t p.\(currentPageNumber)";
+
         
-        cell.layoutMargins = UIEdgeInsetsZero
-        cell.preservesSuperviewLayoutMargins = false
+//        cell.layoutMargins = UIEdgeInsetsZero
+//        cell.preservesSuperviewLayoutMargins = false
         cell.contentView.backgroundColor = isSection ? UIColor(white: 0.7, alpha: 0.1) : UIColor.clearColor()
         cell.backgroundColor = UIColor.clearColor()
-        
         // Adjust text position
         cell.indexLabel.center = cell.contentView.center
         var frame = cell.indexLabel.frame
         frame.origin = isSection ? CGPoint(x: 40, y: frame.origin.y) : CGPoint(x: 20, y: frame.origin.y)
         cell.indexLabel.frame = frame
-
+        let separator = UIView(frame: CGRect(x: 0, y: 60, width: 1024, height: 0.5))
+        separator.backgroundColor = isNight(readerConfig.nightModeSeparatorColor, UIColor.lightGrayColor())
+        cell.contentView.addSubview(separator)
+        tableView.separatorInset = UIEdgeInsetsMake(0, 100000, 100000, 0.5)
         return cell
     }
     
     // MARK: - Table view delegate
     
-    func tableView(tableView: UITableView, didSelectRowAtIndexPath indexPath: NSIndexPath) {
+    public func tableView(tableView: UITableView, didSelectRowAtIndexPath indexPath: NSIndexPath) {
         let tocReference = tocItems[indexPath.row]
         delegate?.sidePanel(self, didSelectRowAtIndexPath: indexPath, withTocReference: tocReference)
         
@@ -162,7 +135,7 @@ class FolioReaderSidePanel: UIViewController, UITableViewDelegate, UITableViewDa
     
     // MARK: - Table view data source
     
-    func tableView(tableView: UITableView, heightForRowAtIndexPath indexPath: NSIndexPath) -> CGFloat {
+    public func tableView(tableView: UITableView, heightForRowAtIndexPath indexPath: NSIndexPath) -> CGFloat {
         return 60
     }
     
@@ -174,11 +147,13 @@ class FolioReaderSidePanel: UIViewController, UITableViewDelegate, UITableViewDa
     
     // MARK: - Rotation
     
-    override func willRotateToInterfaceOrientation(toInterfaceOrientation: UIInterfaceOrientation, duration: NSTimeInterval) {
+    override public func willRotateToInterfaceOrientation(toInterfaceOrientation: UIInterfaceOrientation, duration: NSTimeInterval) {
         UIView.animateWithDuration(duration, animations: { () -> Void in
-            var frame = self.toolBar.frame
-            frame.origin.y = pageHeight-self.toolBarHeight
-            self.toolBar.frame = frame
+            if  self.toolBar != nil {
+                var frame = self.toolBar.frame
+                frame.origin.y = pageHeight-self.toolBarHeight
+                self.toolBar.frame = frame
+            }
         })
     }
     

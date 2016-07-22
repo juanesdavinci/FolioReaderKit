@@ -142,10 +142,10 @@ class FolioReaderFontsMenu: UIViewController, SMSegmentViewDelegate {
         fontBigView.contentMode = UIViewContentMode.Center
         menuView.addSubview(fontBigView)
         
-//        // Separator 3
-//        let line3 = UIView(frame: CGRectMake(0, line2.frame.origin.y+56, view.frame.width, 1))
-//        line3.backgroundColor = readerConfig.nightModeSeparatorColor
-//        menuView.addSubview(line3)
+        // Separator 3
+        let line3 = UIView(frame: CGRectMake(0, line2.frame.origin.y+56, view.frame.width, 1))
+        line3.backgroundColor = readerConfig.nightModeSeparatorColor
+        menuView.addSubview(line3)
         
     }
 
@@ -226,32 +226,35 @@ class FolioReaderFontsMenu: UIViewController, SMSegmentViewDelegate {
     // MARK: - Font slider changed
     
     func sliderValueChanged(sender: HADiscreteSlider) {
-        let currentPage = FolioReader.sharedInstance.readerCenter.currentPage
         let index = Int(sender.value)
-        
-        switch index {
+        changeFontSize(index)
+    }
+    
+    internal func changeFontSize(i : Int){
+        let currentPage = FolioReader.sharedInstance.readerCenter.currentPage
+       
+        switch i {
         case 0:
-            currentPage.webView.js("setFontSize('textSizeOne')")
+            currentPage.webView.js("setFontSize('textSize1')")
             break
         case 1:
-            currentPage.webView.js("setFontSize('textSizeTwo')")
+            currentPage.webView.js("setFontSize('textSize2')")
             break
         case 2:
-            currentPage.webView.js("setFontSize('textSizeThree')")
+            currentPage.webView.js("setFontSize('textSize3')")
             break
         case 3:
-            currentPage.webView.js("setFontSize('textSizeFour')")
+            currentPage.webView.js("setFontSize('textSize4')")
             break
         case 4:
-            currentPage.webView.js("setFontSize('textSizeFive')")
+            currentPage.webView.js("setFontSize('textSize5')")
             break
         default:
             break
         }
-        
-        FolioReader.sharedInstance.currentFontSize = index
+        FolioReader.sharedInstance.currentFontSize = i
     }
-    
+
     // MARK: - Gestures
     
     func tapGesture() {

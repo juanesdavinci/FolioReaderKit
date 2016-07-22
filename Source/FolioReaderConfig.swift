@@ -25,6 +25,7 @@ public class FolioReaderConfig: NSObject {
     public var shouldHideNavigationOnTap = true
     public var allowSharing = true
     public var enableTTS = true
+    public var showPageCount = true // <--- mod juanes
     
     // Reader Strings
     public var localizedHighlightsTitle: String
@@ -59,9 +60,9 @@ public class FolioReaderConfig: NSObject {
         self.nightModeMenuBackground = UIColor(rgba: "#1E1E1E")
         self.nightModeSeparatorColor = UIColor(white: 0.5, alpha: 0.2)
         
-        self.localizedHighlightsTitle = NSLocalizedString("Highlights", comment: "")
+        self.localizedHighlightsTitle = NSLocalizedString("Notas", comment: "")
         self.localizedHighlightsDateFormat = "MMM dd, YYYY | HH:mm"
-        self.localizedHighlightMenu = NSLocalizedString("Highlight", comment: "")
+        self.localizedHighlightMenu = NSLocalizedString("Nota", comment: "")
         self.localizedPlayMenu = NSLocalizedString("Play", comment: "")
         self.localizedPauseMenu = NSLocalizedString("Pause", comment: "")
         self.localizedDefineMenu = NSLocalizedString("Define", comment: "")
@@ -75,7 +76,7 @@ public class FolioReaderConfig: NSObject {
         self.localizedReaderLessThanOneMinute = NSLocalizedString("Less than a minute", comment: "")
         self.localizedShareWebLink = nil
         self.localizedShareChapterSubject = NSLocalizedString("Check out this chapter from", comment: "")
-        self.localizedShareHighlightSubject = NSLocalizedString("Notes from", comment: "")
+        self.localizedShareHighlightSubject = NSLocalizedString("Notas", comment: "")
         self.localizedShareAllExcerptsFrom = NSLocalizedString("All excerpts from", comment: "")
         self.localizedShareBy = NSLocalizedString("by", comment: "")
         

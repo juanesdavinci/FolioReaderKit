@@ -76,7 +76,7 @@ class FolioReaderHighlightList: UITableViewController {
             dateLabel = cell.contentView.viewWithTag(456) as! UILabel
         }
         
-        dateLabel.text = dateString.uppercaseString
+        dateLabel.text = "página \(highlight.page.integerValue)"
         dateLabel.textColor = isNight(UIColor(white: 5, alpha: 0.3), UIColor.lightGrayColor())
         dateLabel.frame = CGRect(x: 20, y: 20, width: view.frame.width-40, height: dateLabel.frame.height)
         
@@ -117,13 +117,33 @@ class FolioReaderHighlightList: UITableViewController {
         highlightLabel.sizeToFit()
         highlightLabel.frame = CGRect(x: 20, y: 46, width: view.frame.width-40, height: highlightLabel.frame.height)
         
+        //Note
+        var noteLabel: UILabel!
+        if cell.contentView.viewWithTag(4567) == nil {
+            noteLabel = UILabel(frame: CGRect(x: 0, y: 0, width: view.frame.width-40, height: 16))
+            noteLabel.tag = 4567
+            noteLabel.autoresizingMask = UIViewAutoresizing.FlexibleWidth
+            noteLabel.font = UIFont(name: "Avenir-Medium", size: 17)
+            cell.contentView.addSubview(noteLabel)
+        } else {
+            noteLabel = cell.contentView.viewWithTag(4567) as! UILabel
+        }
+        
+        noteLabel.text = highlight.notes
+        noteLabel.textColor = isNight(UIColor(white: 5, alpha: 0.3), UIColor.lightGrayColor())
+        noteLabel.numberOfLines = 0
+        noteLabel.sizeToFit()
+        noteLabel.frame = CGRect(x: 20, y: highlightLabel.frame.height + 50, width: view.frame.width-40, height: noteLabel.frame.height)
+        
+        
         return cell
     }
     
     override func tableView(tableView: UITableView, heightForRowAtIndexPath indexPath: NSIndexPath) -> CGFloat {
         let highlight = highlights[indexPath.row]
         
-        let cleanString = highlight.content.stripHtml().truncate(250, trailing: "...").stripLineBreaks()
+        var cleanString = highlight.content.stripHtml().truncate(250, trailing: "...").stripLineBreaks()
+        cleanString += highlight.notes
         let text = NSMutableAttributedString(string: cleanString)
         let range = NSRange(location: 0, length: text.length)
         let paragraph = NSMutableParagraphStyle()
@@ -144,19 +164,20 @@ class FolioReaderHighlightList: UITableViewController {
         let highlight = highlights[indexPath.row]
 
         FolioReader.sharedInstance.readerCenter.changePageWith(page: highlight.page.integerValue, andFragment: highlight.highlightId)
-        
+        FolioReader.sharedInstance.readerCenter.collectionView.setContentOffset(FolioReader.sharedInstance.readerCenter.frameForPage(highlight.page.integerValue-1).origin, animated: false)
         dismissViewControllerAnimated(true, completion: nil)
     }
     
     override func tableView(tableView: UITableView, commitEditingStyle editingStyle: UITableViewCellEditingStyle, forRowAtIndexPath indexPath: NSIndexPath) {
         if editingStyle == .Delete {
             let highlight = highlights[indexPath.row]
-            
-            if highlight.page == currentPageNumber {
-                FRHighlight.removeById(highlight.highlightId) // Remove from HTML
-            }
-            
-            Highlight.removeById(highlight.highlightId) // Remove from Core data
+//            if highlight.page == currentPageNumber {
+                FolioReader.sharedInstance.readerCenter.currentPage.webView.removeHighlight(highlight.highlightId, page: Int(highlight.page))
+//                
+//            }else{
+//                Highlight.removeById(highlight.highlightId) // Remove from Core Data
+//            }
+            FRHighlight.removeById(highlight.highlightId) // Remove from HTML
             highlights.removeAtIndex(indexPath.row)
             tableView.deleteRowsAtIndexPaths([indexPath], withRowAnimation: .Fade)
         }

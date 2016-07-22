@@ -26,8 +26,8 @@ class FREpubParser: NSObject, SSZipArchiveDelegate {
         let book = readEpub(epubPath: epubPath, removeEpub: false)
         
         // Read the cover image
-        if let coverImage = book.coverImage {
-            return UIImage(contentsOfFile: coverImage.fullHref)
+        if let artwork = UIImage(contentsOfFile: book.coverImage!.fullHref) where book.coverImage != nil {
+            return artwork
         }
         
         return nil
@@ -126,11 +126,13 @@ class FREpubParser: NSObject, SSZipArchiveDelegate {
                 book.ncxResource = ncxResource
             }
             
-            assert(book.ncxResource != nil, "ERROR: Could not find table of contents resource. The book don't have a NCX resource.")
-            
-            // The book TOC
-            book.tableOfContents = findTableOfContents()
-            
+//            assert(book.ncxResource != nil, "ERROR: Could not find table of contents resource. The book don't have a NCX resource.")
+            if book.ncxResource != nil {
+                // The book TOC
+                book.tableOfContents = findTableOfContents()
+            }else{
+                book.tableOfContents = [FRTocReference]()
+            }
             // Read metadata
             book.metadata = readMetadata(xmlDoc.root["metadata"].children)
             
@@ -142,6 +144,17 @@ class FREpubParser: NSObject, SSZipArchiveDelegate {
             
             // Read Spine
             book.spine = readSpine(xmlDoc.root["spine"].children)
+            
+            //Book pageMarks
+            if let pm = FolioReader.defaults.objectForKey(kBookId){
+                
+                if let ts = (pm as! NSDictionary)["pageMarks"]{
+                    book.pageMarks =  ts as! [Int]
+                
+//                    print("load defaults: \(book.pageMarks)")
+                }
+            }
+            
         } catch {
             print("Cannot read .opf file.")
         }

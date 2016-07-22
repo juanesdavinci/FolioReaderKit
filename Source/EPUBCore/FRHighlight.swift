@@ -87,6 +87,9 @@ class FRHighlight: NSObject {
     var page: NSNumber!
     var bookId: String!
     var type: HighlightStyle!
+    var startPos : NSNumber!
+    var endPos : NSNumber!
+    var childCount : NSNumber!
     
     /**
     Match a highlight on string.
@@ -120,7 +123,6 @@ class FRHighlight: NSObject {
                     contentPost = (contentPost as NSString).substringWithRange(searchString!.range)
                 }
             }
-            
             let highlight = FRHighlight()
             highlight.id = id
             highlight.type = HighlightStyle.styleForClass(str.substringWithRange(match.rangeAtIndex(1)))
@@ -129,11 +131,14 @@ class FRHighlight: NSObject {
             highlight.contentPost = contentPost
             highlight.page = currentPageNumber
             highlight.bookId = (kBookId as NSString).stringByDeletingPathExtension
+            highlight.startPos = match.range.location
+            highlight.endPos = match.range.location + match.range.length
             
             return highlight
         }
         return mapped.first
     }
+    
     
     static func removeById(highlightId: String) -> String? {
         let currentPage = FolioReader.sharedInstance.readerCenter.currentPage

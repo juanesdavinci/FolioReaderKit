@@ -9,7 +9,7 @@
 
 import UIKit
 
-class FRBook: NSObject {
+public class FRBook: NSObject {
     var resources = FRResources()
     var metadata = FRMetadata()
     var spine = FRSpine()
@@ -18,6 +18,7 @@ class FRBook: NSObject {
     var opfResource: FRResource!
     var ncxResource: FRResource!
     var coverImage: FRResource!
+    var pageMarks = [Int]()
 
     func hasAudio() -> Bool {
         return smils.smils.count > 0 ? true : false;
@@ -74,6 +75,11 @@ class FRBook: NSObject {
     
     func smilFileForId(ID: String) -> FRSmilFile! {
         return smilFileForResource(resources.getById(ID))
+    }
+    
+    public func getSpineResource(let i : Int)->FRResource{
+    
+        return spine.spineReferences[spine.spineReferences.startIndex].resource
     }
     
 }

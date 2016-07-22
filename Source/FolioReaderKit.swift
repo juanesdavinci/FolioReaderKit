@@ -24,12 +24,18 @@ internal let isLargePhone = isPhone6P
 internal let kApplicationDocumentsDirectory = NSSearchPathForDirectoriesInDomains(.DocumentDirectory, .UserDomainMask, true)[0] 
 internal let kCurrentFontFamily = "kCurrentFontFamily"
 internal let kCurrentFontSize = "kCurrentFontSize"
+internal let kCurrentMargin = "kCurrentMargin"
+internal let kCurrentInterline = "kCurrentInterline"
+internal let kCurrentBackgroundColor = "kCurrentBackgroundColor"
+internal let kCurrentFontColor = "kCurrentFontColor"
+internal let kCurrentTwoColumns = "kCurrentTwoColumns"
 internal let kCurrentAudioRate = "kCurrentAudioRate"
 internal let kCurrentHighlightStyle = "kCurrentHighlightStyle"
 internal var kCurrentMediaOverlayStyle = "kMediaOverlayStyle"
 internal let kNightMode = "kNightMode"
 internal let kHighlightRange = 30
 internal var kBookId: String!
+internal var kLastBookOpened = "LastBookOpened"
 
 /**
  `0` Default  
@@ -56,14 +62,14 @@ enum MediaOverlayStyle: Int {
 public class FolioReader : NSObject {
     private override init() {}
     
-    static let sharedInstance = FolioReader()
+    public static let sharedInstance = FolioReader()
     static let defaults = NSUserDefaults.standardUserDefaults()
-    weak var readerCenter: FolioReaderCenter!
-    weak var readerSidePanel: FolioReaderSidePanel!
+    public weak var readerCenter: FolioReaderCenter!
+    public weak var readerSidePanel: FolioReaderSidePanel!
     weak var readerContainer: FolioReaderContainer!
     weak var readerAudioPlayer: FolioReaderAudioPlayer!
-    var isReaderOpen = false
-    var isReaderReady = false
+    public var isReaderOpen = false
+    public var isReaderReady = false
     
     
     var nightMode: Bool {
@@ -85,6 +91,41 @@ public class FolioReader : NSObject {
         get { return FolioReader.defaults.valueForKey(kCurrentFontSize) as! Int }
         set (value) {
             FolioReader.defaults.setValue(value, forKey: kCurrentFontSize)
+            FolioReader.defaults.synchronize()
+        }
+    }
+    var currentMargin: Int {
+        get { return FolioReader.defaults.valueForKey(kCurrentMargin) as! Int }
+        set (value) {
+            FolioReader.defaults.setValue(value, forKey: kCurrentMargin)
+            FolioReader.defaults.synchronize()
+        }
+    }
+    var currentInterline: Int {
+        get { return FolioReader.defaults.valueForKey(kCurrentInterline) as! Int }
+        set (value) {
+            FolioReader.defaults.setValue(value, forKey: kCurrentInterline)
+            FolioReader.defaults.synchronize()
+        }
+    }
+    var TwoColumns: Bool {
+        get { return FolioReader.defaults.valueForKey(kCurrentTwoColumns) as! Bool }
+        set (value) {
+            FolioReader.defaults.setValue(value, forKey: kCurrentTwoColumns)
+            FolioReader.defaults.synchronize()
+        }
+    }
+    var currentBackgroundColor: Int {
+        get { return FolioReader.defaults.valueForKey(kCurrentBackgroundColor) as! Int }
+        set (value) {
+            FolioReader.defaults.setValue(value, forKey: kCurrentBackgroundColor)
+            FolioReader.defaults.synchronize()
+        }
+    }
+    var currentFontColor: Int {
+        get { return FolioReader.defaults.valueForKey(kCurrentFontColor) as! Int }
+        set (value) {
+            FolioReader.defaults.setValue(value, forKey: kCurrentFontColor)
             FolioReader.defaults.synchronize()
         }
     }
@@ -128,10 +169,32 @@ public class FolioReader : NSObject {
     /**
     Present a Folio Reader for a Parent View Controller.
     */
-    public class func presentReader(parentViewController parentViewController: UIViewController, withEpubPath epubPath: String, andConfig config: FolioReaderConfig, shouldRemoveEpub: Bool = true, animated: Bool = true) {
+    public class func presentReader(parentViewController parentViewController: UIViewController, withEpubPath epubPath: String, andConfig config: FolioReaderConfig, shouldRemoveEpub: Bool = false, animated: Bool = true) {
         let reader = FolioReaderContainer(config: config, epubPath: epubPath, removeEpub: shouldRemoveEpub)
         FolioReader.sharedInstance.readerContainer = reader
         parentViewController.presentViewController(reader, animated: animated, completion: nil)
+        
+        print("saved : \(epubPath)")
+        FolioReader.defaults.setObject(epubPath, forKey: kLastBookOpened)
+        FolioReader.defaults.synchronize()
+    }
+    
+    public class func presentReader(parentViewController: UIViewController){
+        let defaults = NSUserDefaults.standardUserDefaults()
+        
+        if defaults.valueForKey(kLastBookOpened) != nil {
+            let lastEpub = defaults.valueForKey(kLastBookOpened) as! String
+            print("loaded : \(lastEpub)")
+            let configEpub = FolioReaderConfig()
+            configEpub.allowSharing = false
+            configEpub.enableTTS = false
+            configEpub.menuSeparatorColor = UIColor.whiteColor()
+            configEpub.tintColor = UIColor.lightGrayColor()
+            configEpub.showPageCount = false
+            let reader = FolioReaderContainer(config: configEpub, epubPath: lastEpub, removeEpub: false)
+            FolioReader.sharedInstance.readerContainer = reader
+            parentViewController.presentViewController(reader, animated: true, completion: nil)
+        }
     }
     
     // MARK: - Application State
@@ -158,9 +221,11 @@ public class FolioReader : NSObject {
             if let currentPage = FolioReader.sharedInstance.readerCenter.currentPage {
                 let position = [
                     "pageNumber": currentPageNumber,
-                    "pageOffset": currentPage.webView.scrollView.contentOffset.y
+                    "pageOffset": currentPage.webView.scrollView.contentOffset.y,
+                    "pageMarks" : book.pageMarks
                 ]
                 
+//                print("save defaults: \(book.pageMarks)")
                 FolioReader.defaults.setObject(position, forKey: kBookId)
                 FolioReader.defaults.synchronize()
             }
@@ -409,7 +474,7 @@ internal extension String {
 
 }
 
-internal extension UIImage {
+public extension UIImage {
     convenience init?(readerImageNamed: String) {
         let traits = UITraitCollection(displayScale: UIScreen.mainScreen().scale)
         self.init(named: readerImageNamed, inBundle: NSBundle.frameworkBundle(), compatibleWithTraitCollection: traits)

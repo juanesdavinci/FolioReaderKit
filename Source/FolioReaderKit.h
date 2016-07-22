@@ -7,6 +7,7 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "DiffMatchPatch.h"
 
 //! Project version number for FolioReaderKit.
 FOUNDATION_EXPORT double FolioReaderKitVersionNumber;

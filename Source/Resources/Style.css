@@ -33,19 +33,19 @@ footer, header, hgroup, menu, nav, section {
 /* ePUB */
 html {
     -webkit-text-size-adjust: none; /* Never autoresize text */
-    padding: 0 0 !important;
+    padding: 0 0;
     overflow: hidden;
 }
 
 body {
-    padding: 40px 20px !important;
+/*    padding: 40px 20px;*/
     overflow: hidden !important;
 }
 
 /* Custom padding for tablets */
 @media only screen and (min-device-width: 768px){
     body {
-        padding: 60px 80px !important;
+/*        padding: 60px 80px !important;*/
     }
 }
 
@@ -76,7 +76,6 @@ a { -webkit-touch-callout: none; } /* Disable link callback */
 img { -webkit-user-select: none; }
 p {
     margin: 1.3em 0 1.5em 0;
-    line-height: 1.40em !important;
     text-indent: 1.25em;
 }
 b, strong, th {font-weight: bolder !important;}
@@ -197,7 +196,7 @@ html, body {
 }
 
 html {
-    background-color: #FFFFFF !important;
+/*    background-color: #FFFFFF !important;*/
 }
 
 body {
@@ -208,7 +207,7 @@ html.nightMode {
     background-color: #131313 !important;
 }
 
-.nightMode p, .nightMode div, .nightMode span:not(.epub-media-overlay-playing) {
+.nightMode p, .nightMode div, .nightMode span:not(.epub-media-overlay-playing, .uiWebviewHighlight) {
     color: #767676 !important;
     background-color: transparent !important;
 }
@@ -235,11 +234,11 @@ html.nightMode .highlight-underline {border-bottom: 2px solid rgba(240, 40, 20, 
 .lora, .lora p, .lora span, .lora div { font-family: "Lora", serif !important; }
 .raleway, .raleway p, .raleway span, .raleway div { font-family: "Raleway", sans-serif !important; }
 
-html.textSizeOne, .textSizeOne body { font-size: 13px !important; }
-html.textSizeTwo, .textSizeTwo body { font-size: 15px !important; }
-html.textSizeThree, .textSizeThree body { font-size: 17px !important; }
-html.textSizeFour, .textSizeFour body { font-size: 19px !important; }
-html.textSizeFive, .textSizeFive body { font-size: 21px !important; }
+html.textSize1, .textSize1 body { font-size: 13px !important; }
+html.textSize2, .textSize2 body { font-size: 15px !important; }
+html.textSize3, .textSize3 body { font-size: 17px !important; }
+html.textSize4, .textSize4 body { font-size: 19px !important; }
+html.textSize5, .textSize5 body { font-size: 21px !important; }
 
 h1 {
     font-size: 2em;
@@ -272,7 +271,6 @@ body {
 }
 p, span, div {
     font-size: 1em;
-    line-height: 1.5 !important;
 }
 @media only screen and (min-device-width: 600px) {
     div {
@@ -283,4 +281,104 @@ p, span, div {
         -webkit-hyphens: none !important;
         hyphens: none !important;
     }
+}
+
+/*
+ *
+ * margin classes
+ *
+ */
+
+html.margin-00, .margin-00 body .margin-00{
+    padding: 0 !important;
+    margin: 0px !important;
+}
+html.margin-05, .margin-05 body .margin-05{
+    padding: 0 !important;
+    margin: 10px !important;
+}
+html.margin-10, .margin-10 body .margin-10{
+    padding: 0 !important;
+    margin: 20px !important;
+}
+html.margin-15, .margin-15 body .margin-15{
+    padding: 0 !important;
+    margin: 30px !important;
+}
+html.margin-20, .margin-20 body .margin-20{
+    padding: 0 !important;
+    margin: 40px !important;
+}
+html.margin-25, .margin-25 body .margin-25{
+    padding: 0 !important;
+    margin: 50px !important;
+}
+
+/*
+ *
+ * interline classes
+ *
+ */
+.interline-0 p {
+    line-height: 1.0;
+}
+.interline-1 p {
+    line-height: 1.25;
+}
+.interline-2 p {
+    line-height: 1.5;
+}
+.interline-3 p {
+    line-height: 1.75;
+}
+.interline-4 p {
+    line-height: 2;
+}
+.interline-5 p {
+    line-height: 2.25;
+}
+
+/*
+ *
+ * Two Columns class
+ *
+ */
+
+.two-cols {
+    -webkit-column-count: 2;
+}
+/*
+ *
+ * Font Color
+ *
+ */
+html.color-1 {
+    color:rgba(0, 0, 0, 1)
+}
+html.color-2 {
+    color:rgba(192, 237, 114, 0.9)
+}
+html.color-3 {
+    color:rgba(173, 216, 255, 0.9)
+}
+html.color-4 {
+    color:rgba(255, 176, 202, 0.9)
+}
+
+/*
+ *
+ * background Color
+ *
+ */
+html.background-1 {
+    background-color: white;
+}
+html.background-2 {
+    background-color: grey;
+}
+html.background-3 {
+    background-color:lightgrey;
+}
+html.background-4 {
+    background-color:darkgrey;
 }

@@ -8,11 +8,11 @@
 
 import UIKit
 
-class FRResource: NSObject {
+public class FRResource: NSObject {
     var id: String!
     var title: String!
     var href: String!
-    var fullHref: String!
+    public var fullHref: String!
     var mediaType: MediaType!
     var mediaOverlay: String!
     var inputEncoding: String!
